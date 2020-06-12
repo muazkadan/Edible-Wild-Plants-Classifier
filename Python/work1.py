@@ -1,5 +1,3 @@
-from typing import List, Any, Union
-
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import os
@@ -7,7 +5,7 @@ import cv2
 import random as rnd
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, Conv2D, MaxPool2D
-from tensorflow.keras.utils import normalize
+from tensorflow.keras.utils import normalize, to_categorical
 import numpy as np
 
 print("Tensorflow version : " + tf.__version__) #2.2.0
@@ -41,8 +39,8 @@ for category in CATEGORIES:
         new_array = cv2.resize(img_array, (IMG_WIDTH, IMG_HEIGHT))
         training_data.append([new_array, class_num])
 
-plt.imshow(training_data[1][0])
-plt.show()
+# plt.imshow(training_data[1][0])
+# plt.show()
 
 print(len(training_data))
 
@@ -55,9 +53,9 @@ for features, label in training_data:
     x.append(features)
     y.append(label)
 
-x = np.array(x).reshape(-1, IMG_HEIGHT, IMG_WIDTH, 3)
+X = np.array(x).reshape(-1, IMG_HEIGHT, IMG_WIDTH, 3)
 
-X = np.array(normalize(x))
+# X = np.array(normalize(x))
 y = np.array(y)
 
 model = Sequential()
@@ -71,13 +69,26 @@ model.add(MaxPool2D(pool_size=(2,2)))
 
 model.add(Flatten())
 model.add(Dense(64))
+model.add(Activation("relu"))
 
-model.add(Dense(3))
+
+model.add(Dense(1))
 model.add(Activation("sigmoid"))
 
 model.compile(loss="categorical_crossentropy",
               optimizer="adam",
               metrics=["accuracy"])
 
-model.fit(X, y, batch_size=32)
+model.fit(X, y, epochs=5, batch_size=32, validation_split=0.1)
 
+# not working
+# test_img = cv2.imread('/home/mouaz/PycharmProjects/Bitirme/dataset/Alfalfa/Alfalfa8.jpg', cv2.IMREAD_COLOR)
+# test_array = cv2.resize(test_img, (IMG_WIDTH, IMG_HEIGHT))
+# img_class = model.predict_classes(test_array)
+
+savedModelPath = "/home/mouaz/PycharmProjects/Bitirme/Python/SavedModel"
+model.save(savedModelPath)
+
+converter = tf.lite.TFLiteConverter.from_saved_model(savedModelPath)
+tflite_model = converter.convert()
+open("converted_model.tflite", "wb").write(tflite_model)
