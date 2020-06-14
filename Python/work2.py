@@ -9,8 +9,8 @@ from tensorflow_examples.lite.model_maker.core.task.model_spec import mobilenet_
 train_data = ImageClassifierDataLoader.from_folder("/home/mouaz/PycharmProjects/Bitirme/dataset-jpeg")
 test_data =  ImageClassifierDataLoader.from_folder("/home/mouaz/PycharmProjects/Bitirme/dataset-test-jpeg")
 
-model = image_classifier.create(train_data, batch_size=35, model_spec=resnet_50_spec, epochs=5)
-# model = image_classifier.create(train_data, batch_size=35, model_spec=mobilenet_v2_spec, epochs=1)
+# model = image_classifier.create(train_data, batch_size=35, model_spec=resnet_50_spec, epochs=5)
+model = image_classifier.create(train_data, batch_size=35, model_spec=mobilenet_v2_spec, epochs=5)
 
 loss, accuracy = model.evaluate(test_data)
 
