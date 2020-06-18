@@ -53,10 +53,10 @@ for features, label in training_data:
     x.append(features)
     y.append(label)
 
-# X = np.array(x).reshape(-1, IMG_HEIGHT, IMG_WIDTH, 3)
-X = np.array(x)
+X = np.array(x).reshape(-1, IMG_HEIGHT, IMG_WIDTH, 3)
+# X = np.array(x)
 # X = np.array(normalize(x))
-y = np.array(y)
+# y = np.array(y)
 y = to_categorical(y, len(CATEGORIES))
 
 model = Sequential()
@@ -75,12 +75,36 @@ model.compile(loss="categorical_crossentropy",
               optimizer="adam",
               metrics=["accuracy"])
 
-model.fit(X, y, epochs=5, batch_size=32, validation_split=0.1)
+model.fit(X, y, epochs=10, batch_size=32)
+
+TestDataDir = "/home/mouaz/PycharmProjects/Bitirme/dataset-test"
+test_data = []
+for category in CATEGORIES:
+    path = os.path.join(TestDataDir, category)
+    class_num = CATEGORIES.index(category)
+    for img in os.listdir(path):
+        img_array = cv2.imread(os.path.join(path, img), cv2.IMREAD_COLOR)
+        new_array = cv2.resize(img_array, (IMG_WIDTH, IMG_HEIGHT))
+        test_data.append([new_array, class_num])
+
+test_x = []
+test_y = []
+for features, label in test_data:
+    test_x.append(features)
+    test_y.append(label)
+
+test_x = np.array(test_x)
+test_y = to_categorical(test_y, len(CATEGORIES))
+
+model.evaluate(test_x, test_y)
 
 # not working
-# test_img = cv2.imread('/home/mouaz/PycharmProjects/Bitirme/dataset/Alfalfa/Alfalfa8.jpg', cv2.IMREAD_COLOR)
-# test_array = cv2.resize(test_img, (IMG_WIDTH, IMG_HEIGHT))
-# img_class = model.predict_classes(test_array)
+test_img = cv2.imread('/home/mouaz/PycharmProjects/Bitirme/dataset/Alfalfa/Alfalfa8.jpg', cv2.IMREAD_COLOR)
+test_array = cv2.resize(test_img, (IMG_WIDTH, IMG_HEIGHT))
+test_array = np.array(test_array).reshape(-1, IMG_HEIGHT, IMG_WIDTH, 3)
+img_class = model.predict([test_array])
+
+print(img_class)
 
 savedModelPath = "/home/mouaz/PycharmProjects/Bitirme/Python/SavedModel"
 model.save(savedModelPath)
