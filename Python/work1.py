@@ -75,7 +75,7 @@ model.compile(loss="categorical_crossentropy",
               optimizer="adam",
               metrics=["accuracy"])
 
-model.fit(X, y, epochs=10, batch_size=32)
+model.fit(X, y, epochs=1, batch_size=32)
 
 TestDataDir = "/home/mouaz/PycharmProjects/Bitirme/dataset-test"
 test_data = []
@@ -111,4 +111,4 @@ model.save(savedModelPath)
 
 converter = tf.lite.TFLiteConverter.from_saved_model(savedModelPath)
 tflite_model = converter.convert()
-open("converted_model.tflite", "wb").write(tflite_model)
+open("/home/mouaz/PycharmProjects/Bitirme/Android/app/src/main/assets/converted_model.tflite", "wb").write(tflite_model)
