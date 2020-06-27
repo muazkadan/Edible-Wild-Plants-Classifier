@@ -9,7 +9,9 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.JavaCameraView;
@@ -18,26 +20,41 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.support.common.FileUtil;
+import org.tensorflow.lite.support.common.TensorProcessor;
 import org.tensorflow.lite.support.image.ImageProcessor;
+import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.image.ops.ResizeOp;
+import org.tensorflow.lite.support.label.TensorLabel;
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
+import org.tensorflow.lite.support.common.ops.NormalizeOp;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 
 public class CameraActivity extends AppCompatActivity implements CameraBridgeViewBase.CvCameraViewListener2 {
     private JavaCameraView javaCameraView;
     private Mat mat1;
-    private Button classifyButton;
+    private Button classifyButton, probabilitiesButton;
     private TextView classTextView;
     private Interpreter tflite;
     private List<String> labels;
-    private int[] imageShape;
+    private int[] imageShape, probabilityShape;
+    private DataType imageDataType, probabilityDataType;
+    private TensorImage inputImageBuffer;
     private int imageSizeY;
     private int imageSizeX;
+    private TensorBuffer outputProbabilityBuffer;
+    private TensorProcessor probabilityProcessor;
+    private PriorityQueue<Recognition> priorityQueue;
 
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
@@ -73,6 +90,7 @@ public class CameraActivity extends AppCompatActivity implements CameraBridgeVie
 
         classTextView = findViewById(R.id.class_textView);
         classifyButton = findViewById(R.id.classify_button);
+        probabilitiesButton = findViewById(R.id.probabilities_button);
 
         try {
             labels = FileUtil.loadLabels(this, "labels.txt");
@@ -82,8 +100,15 @@ public class CameraActivity extends AppCompatActivity implements CameraBridgeVie
         }
 
         imageShape = tflite.getInputTensor(0).shape();
+        imageDataType = tflite.getInputTensor(0).dataType();
+        probabilityDataType = tflite.getOutputTensor(0).dataType();
+        probabilityShape =
+                tflite.getOutputTensor(0).shape();
+        inputImageBuffer = new TensorImage(imageDataType);
+        outputProbabilityBuffer = TensorBuffer.createFixedSize(probabilityShape, probabilityDataType);
         imageSizeY = imageShape[1];
         imageSizeX = imageShape[2];
+        probabilityProcessor = new TensorProcessor.Builder().add(new NormalizeOp(127.5f, 127.5f)).build();
 
         classifyButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -94,10 +119,42 @@ public class CameraActivity extends AppCompatActivity implements CameraBridgeVie
                         new ImageProcessor.Builder()
                                 .add(new ResizeOp(imageSizeX, imageSizeY, ResizeOp.ResizeMethod.NEAREST_NEIGHBOR))
                                 .build();
+                inputImageBuffer.load(bitmap);
+                inputImageBuffer = imageProcessor.process(inputImageBuffer);
+                tflite.run(inputImageBuffer.getBuffer(), outputProbabilityBuffer.getBuffer().rewind());
+                Map<String, Float> labeledProbability =
+                        new TensorLabel(labels, probabilityProcessor.process(outputProbabilityBuffer))
+                                .getMapWithFloatValue();
+                classTextView.setText("");
+                priorityQueue =
+                        new PriorityQueue<>(
+                                1,
+                                new Comparator<Recognition>() {
+                                    @Override
+                                    public int compare(Recognition lhs, Recognition rhs) {
+                                        return Float.compare(rhs.getConfidence(), lhs.getConfidence());
+                                    }
+                                });
+                for (Map.Entry<String, Float> entry : labeledProbability.entrySet()) {
+                    priorityQueue.add(new Recognition(entry.getKey(), entry.getValue()));
+                }
+                Recognition recognition = priorityQueue.peek();
+                classTextView.setText("Class: " + recognition.getTitle() + "  \nAccuracy: " + String.format("%.2f", 100 + (100 * recognition.getConfidence())));
+                probabilitiesButton.setVisibility(View.VISIBLE);
+            }
+        });
+
+        probabilitiesButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                classTextView.setText("");
+                while(!priorityQueue.isEmpty()){
+                    Recognition recognition = priorityQueue.poll();
+                    classTextView.setText(classTextView.getText() + "Class: " + recognition.getTitle() + " / Accuracy: " + String.format("%.2f", 100 + (100 * recognition.getConfidence())) + "\n");
+                }
             }
         });
     }
-
 
     @Override
     public void onCameraViewStarted(int width, int height) {
